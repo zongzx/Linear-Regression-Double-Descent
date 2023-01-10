@@ -1,0 +1,88 @@
+---
+title: "Linear Regression Double Descent"
+output: html_notebook
+---
+```{r}
+library(MASS)
+library(matlib)
+```
+
+## Generate Data
+
+```{r}
+generate_dataset <- function(number_of_data, dim=1000, sigma=0.1) {
+  beta <- runif(dim) 
+  beta <- beta  /sqrt(sum(beta ^ 2)) ## norm equals 1
+  X <- t(replicate(number_of_data, rnorm(dim)))
+  noise <- rnorm(number_of_data, sd=sigma)
+  Y <- X %*% beta + noise
+  dataset <- list(X, Y)
+  names(dataset) <- c("X", "Y")
+  return(dataset)
+}
+```
+
+## Split dataset
+```{r}
+split_dataset <- function(dataset, split_ratio=0.75) {
+  set.seed(101) 
+  sample <- sample.int(n=nrow(dataset$X), size=floor(split_ratio * nrow(dataset$X)), replace=FALSE)
+  X_train <- dataset$X[sample, ]
+  Y_train <- dataset$Y[sample, ]
+  X_test  <- dataset$X[-sample, ]
+  Y_test <- dataset$Y[-sample, ]
+  dataset <- list(X_train, Y_train, X_test, Y_test)
+  names(dataset) <- c("X_train", "Y_train", "X_test", "Y_test")
+  return(dataset)
+}
+
+```
+
+## Predict
+```{r}
+predict <- function(dataset) {
+  X_train <- dataset$X_train
+  X_test <- dataset$X_test
+  Y_train <- dataset$Y_train
+  Y_test <- dataset$Y_test
+  dim <- ncol(X_train)
+  n_samples <- nrow(X_train)
+  if (n_samples < dim) {
+    beta_hat <- ginv(X_train) %*% Y_train
+  }
+  else {
+    # Run with built-in lm()
+    #dat <- as.data.frame(cbind(Y_train, X_train))
+    #names(dat)[1] <- "y"
+    #lm_model <- lm(y ~ .-1, data = dat)
+    #beta_hat <- matrix(lm_model$coefficients, ncol = 1)
+    
+    # Run with closed form solution
+    beta_hat <- solve( t(X_train) %*% X_train) %*% t(X_train) %*% Y_train
+  }
+  prediction <- X_test %*% beta_hat
+  MSE <- sqrt(mean((Y_test - prediction)^2))
+  return(MSE)
+}
+```
+
+```{r}
+N <- c(seq(100, 800, 100), seq(900, 990, 10), seq(991,1000,1), 
+       seq(1001, 1009, 1), seq(1010, 1100, 10), seq(1200, 2000, 100))
+results <- integer(length(N))
+epochs <- 20
+for (epoch in 1 : 20) {
+  for (i in 1 : length(N)) {
+    dataset <- split_dataset( generate_dataset(N[i], dim=500), split_ratio=0.5 )
+    results[i] = results[i] + predict(dataset)
+  }
+}
+results = results / epochs
+```
+
+
+```{r}
+plot(N, results)
+lines(N, results)
+```
+
